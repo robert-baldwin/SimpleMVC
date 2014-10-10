@@ -8,8 +8,8 @@ module Phase5
     # 3. route params
     def initialize(req, route_params = {})
       @params = route_params 
-      @params.deep_merge! parse_www_encoded_form(req.body)         if req.body
-      @params.deep_merge! parse_www_encoded_form(req.query_string) if req.query_string
+      parse_www_encoded_form(req.body)         if req.body
+      parse_www_encoded_form(req.query_string) if req.query_string
     end
 
     def [](key)
@@ -29,15 +29,13 @@ module Phase5
     # should return
     # { "user" => { "address" => { "street" => "main", "zip" => "89436" } } }
     def parse_www_encoded_form(www_encoded_form)
-      params = {}
-
       key_values = URI::decode_www_form(www_encoded_form)
       key_values.each do |key, value|
         nested_keys = parse_key(key)
-        params.deep_merge!(rconstruct_nested_hash(nested_keys, value))
+        construct_and_merge_nested_hash(nested_keys, value)
+        # @params.deep_merge!(rconstruct_nested_hash(nested_keys, value))
+        # @params.deep_merge!(iconstruct_nested_hash(nested_keys, value))
       end
-
-      params
     end
     
     # this should return an array
@@ -46,11 +44,13 @@ module Phase5
       key.split(/\]\[|\[|\]/)
     end
 
+    # construct bottom-up -- requires #deep_merge!
     def rconstruct_nested_hash(keys, value)
       return value if keys.empty?
       { keys.shift => rconstruct_nested_hash(keys, value) }
     end
 
+    # construct bottom-up -- requires #deep_merge!
     def iconstruct_nested_hash(keys, value)
       nested_hash = { keys.pop => value }
 
@@ -60,6 +60,17 @@ module Phase5
       end
 
       nested_hash
+    end
+
+    # construct top-down -- requires direct access to @params
+    def construct_and_merge_nested_hash(keys, value)
+      scope = @params
+
+      until keys.empty?
+        key = keys.shift
+        scope[key] ||= (keys.empty? ? value : {})
+        scope = scope[key]
+      end
     end
   end
 end
